@@ -84,6 +84,22 @@ type Config struct {
 	// when FastestAddr is true.
 	FastestTimeout timeutil.Duration `yaml:"fastest_timeout"`
 
+	// Geosite settings
+
+	// GeositeEnabled, if true, enables geosite-based upstream routing.
+	GeositeEnabled bool `yaml:"geosite_enabled"`
+
+	// GeositeDataSource is the source for geosite data.  It can be:
+	//   - "inline" to use embedded data
+	//   - URL starting with "http://" or "https://" to download from online
+	//   - local file path
+	// If empty, defaults to inline data.
+	GeositeDataSource string `yaml:"geosite_data_source"`
+
+	// GeositeUpdateInterval is the interval for automatic geosite data updates.
+	// Only applies when GeositeDataSource is a URL.  Zero disables auto-update.
+	GeositeUpdateInterval timeutil.Duration `yaml:"geosite_update_interval"`
+
 	// Access settings
 
 	// AllowedClients is the slice of IP addresses, CIDR networks, and
@@ -263,6 +279,10 @@ type ServerConfig struct {
 
 	Config
 	TLSAllowUnencryptedDoH bool
+
+	// DataDir is the path to the data directory where geosite and other data
+	// files are stored.
+	DataDir string
 
 	// UpstreamTimeout is the timeout for querying upstream servers.
 	UpstreamTimeout time.Duration

@@ -706,6 +706,34 @@ class Api {
 
         return this.makeRequest(path, method);
     }
+
+    // Geosite
+    GET_GEOSITE_STATUS = { path: 'geosite/status', method: 'GET' };
+
+    UPDATE_GEOSITE = { path: 'geosite/update', method: 'POST' };
+
+    getGeositeStatus() {
+        const { path, method } = this.GET_GEOSITE_STATUS;
+
+        return this.makeRequest(path, method);
+    }
+
+    updateGeosite() {
+        const { path, method } = this.UPDATE_GEOSITE;
+
+        return this.makeRequest(path, method);
+    }
+
+    // Test Geosite
+    TEST_GEOSITE = { path: 'test_geosite', method: 'POST' };
+
+    testGeosite(domain: string) {
+        const { path, method } = this.TEST_GEOSITE;
+        const config = {
+            data: { domain },
+        };
+        return this.makeRequest(path, method, config);
+    }
 }
 
 const apiClient = new Api();

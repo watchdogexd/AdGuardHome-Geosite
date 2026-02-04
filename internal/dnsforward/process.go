@@ -8,8 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AdguardTeam/AdGuardHome/internal/aghnet"
+	"github.com/AdguardTeam/AdGuardHome/internal/aghslog"
 	"github.com/AdguardTeam/AdGuardHome/internal/filtering"
 	"github.com/AdguardTeam/dnsproxy/proxy"
+	"github.com/AdguardTeam/dnsproxy/upstream"
 	"github.com/AdguardTeam/golibs/netutil"
 	"github.com/miekg/dns"
 )
@@ -585,6 +588,64 @@ func (s *Server) dhcpHostFromRequest(q *dns.Question) (reqHost string) {
 
 // setCustomUpstream sets custom upstream settings in pctx, if necessary.
 func (s *Server) setCustomUpstream(ctx context.Context, pctx *proxy.DNSContext, clientID string) {
+	// Check geosite-based routing first if enabled.
+	if s.geosite != nil && len(pctx.Req.Question) > 0 {
+		domain := pctx.Req.Question[0].Name
+		if domain != "" {
+			// Remove trailing dot.
+			if domain[len(domain)-1] == '.' {
+				domain = domain[:len(domain)-1]
+			}
+
+			tags, upstreams := s.geosite.getUpstreamsForDomain(domain)
+			if len(upstreams) > 0 {
+				// Log the matched geosite tags
+				s.logger.InfoContext(
+					ctx,
+					"domain matched geosite tags",
+					"domain", domain,
+					"tags", tags,
+				)
+
+				// Create a custom upstream config for this geosite category.
+				uc, err := proxy.ParseUpstreamsConfig(upstreams, &upstream.Options{
+					Logger:       aghslog.NewForUpstream(s.baseLogger, aghslog.UpstreamTypeMain),
+					Bootstrap:    s.bootstrap,
+					Timeout:      s.conf.UpstreamTimeout,
+					HTTPVersions: aghnet.UpstreamHTTPVersions(s.conf.UseHTTP3Upstreams),
+					PreferIPv6:   s.conf.BootstrapPreferIPv6,
+					RootCAs:      s.conf.TLSv12Roots,
+					CipherSuites: s.conf.TLSCiphers,
+				})
+				if err != nil {
+					s.logger.ErrorContext(
+						ctx,
+						"failed to parse geosite upstreams",
+						"domain", domain,
+						"tags", tags,
+						"error", err,
+					)
+				} else {
+					s.logger.DebugContext(
+						ctx,
+						"using geosite upstreams",
+						"domain", domain,
+						"tags", tags,
+						"upstreams", upstreams,
+					)
+					pctx.CustomUpstreamConfig = proxy.NewCustomUpstreamConfig(
+						uc,
+						s.conf.CacheEnabled,
+						int(s.conf.CacheSize),
+						s.conf.EDNSClientSubnet.Enabled,
+					)
+					return
+				}
+			}
+		}
+	}
+
+	// Fall back to client-specific custom upstreams.
 	if !pctx.Addr.IsValid() || s.conf.ClientsContainer == nil {
 		return
 	}

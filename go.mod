@@ -45,6 +45,8 @@ require (
 	howett.net/plist v1.0.1
 )
 
+require github.com/metacubex/geo v0.0.0-20240718103914-a4db326ccfd7
+
 require (
 	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/auth v0.18.1 // indirect
@@ -79,6 +81,7 @@ require (
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	github.com/sagernet/sing v0.4.2 // indirect
 	github.com/securego/gosec/v2 v2.22.11 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect

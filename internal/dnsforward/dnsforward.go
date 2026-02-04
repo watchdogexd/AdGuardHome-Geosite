@@ -163,6 +163,10 @@ type Server struct {
 	// initialization.  See [newIpsetHandler].
 	ipset *ipsetHandler
 
+	// geosite manages geosite data for domain-based upstream routing.  It is
+	// nil if geosite support is disabled.
+	geosite *geositeManager
+
 	// dns64Pref is the NAT64 prefix used for DNS64 response mapping.  The major
 	// part of DNS64 happens inside the [proxy] package, but there still are
 	// some places where response mapping is needed (e.g. DHCP).
@@ -558,6 +562,16 @@ func (s *Server) prepareUpstreamSettings(ctx context.Context, boot upstream.Reso
 		return fmt.Errorf("loading upstreams: %w", err)
 	}
 
+	// Process geosite rules if geosite is enabled.
+	if s.geosite != nil {
+		// Extract and store geosite rules before filtering.
+		s.geosite.setRules(upstreams)
+	}
+
+	// Always filter out geosite rules from the regular upstream list to avoid
+	// parsing errors when geosite is disabled.
+	upstreams = filterGeositeRulesFromList(upstreams)
+
 	uc, err := newUpstreamConfig(ctx, s.logger, upstreams, defaultDNS, &upstream.Options{
 		Logger:       aghslog.NewForUpstream(s.baseLogger, aghslog.UpstreamTypeMain),
 		Bootstrap:    boot,
@@ -656,6 +670,21 @@ func (s *Server) prepareInternalDNS(ctx context.Context) (err error) {
 	if err != nil {
 		// Don't wrap the error, because it's informative enough as is.
 		return err
+	}
+
+	// Initialize geosite manager if enabled.
+	if s.conf.GeositeEnabled {
+		geositeLogger := s.baseLogger.With(slogutil.KeyPrefix, "geosite")
+		s.geosite, err = newGeositeManager(
+			ctx,
+			geositeLogger,
+			s.conf.DataDir,
+			s.conf.GeositeDataSource,
+			time.Duration(s.conf.GeositeUpdateInterval),
+		)
+		if err != nil {
+			return fmt.Errorf("initializing geosite: %w", err)
+		}
 	}
 
 	bootOpts := &upstream.Options{
@@ -816,6 +845,10 @@ func (s *Server) stopLocked(ctx context.Context) {
 
 	for _, b := range s.bootResolvers {
 		logCloserErr(ctx, b, "closing bootstrap", s.logger.With("address", b.Address()))
+	}
+
+	if s.geosite != nil {
+		s.geosite.close()
 	}
 
 	s.isRunning = false

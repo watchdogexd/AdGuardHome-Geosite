@@ -788,11 +788,10 @@ func run(
 	tlsMgr.setWebAPI(web)
 	sigHdlr.addTLSManager(tlsMgr)
 
-	statsDir, querylogDir, err := checkStatsAndQuerylogDirs(config, workDir)
+	statsDir, querylogDir, dataDir, err := checkStatsAndQuerylogDirs(config, workDir)
 	fatalOnError(err)
-
 	if !isFirstRun {
-		runDNSServer(ctx, baseLogger, tlsMgr, confModifier, statsDir, querylogDir, httpReg)
+		runDNSServer(ctx, baseLogger, tlsMgr, confModifier, statsDir, querylogDir, dataDir, httpReg)
 	}
 
 	if !opts.noPermCheck {
@@ -814,9 +813,10 @@ func runDNSServer(
 	confModifier *defaultConfigModifier,
 	statsDir string,
 	querylogDir string,
+	dataDir string,
 	httpReg *aghhttp.DefaultRegistrar,
 ) {
-	err := initDNS(ctx, slogLogger, tlsMgr, confModifier, httpReg, statsDir, querylogDir)
+	err := initDNS(ctx, slogLogger, tlsMgr, confModifier, httpReg, statsDir, querylogDir, dataDir)
 	fatalOnError(err)
 
 	tlsMgr.start(ctx)
@@ -1358,7 +1358,7 @@ func cmdlineUpdate(
 	//
 	// TODO(e.burkov):  We could probably initialize the internal resolver
 	// separately.
-	err := initDNSServer(ctx, nil, nil, nil, nil, nil, nil, tlsMgr, l, agh.EmptyConfigModifier{})
+	err := initDNSServer(ctx, nil, nil, nil, nil, nil, nil, tlsMgr, l, agh.EmptyConfigModifier{}, "")
 	fatalOnError(err)
 
 	l.InfoContext(ctx, "performing update via cli")

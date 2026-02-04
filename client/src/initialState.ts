@@ -334,6 +334,9 @@ export type DnsConfigData = {
     cache_ttl_max?: number;
     cache_ttl_min?: number;
     cache_optimistic?: boolean;
+    geosite_enabled?: boolean;
+    geosite_data_source?: string;
+    geosite_update_interval?: number;
 };
 
 export type FilteringData = {
@@ -514,6 +517,9 @@ export const initialState: RootState = {
         resolve_clients: false,
         use_private_ptr_resolvers: false,
         default_local_ptr_upstreams: [],
+        geosite_enabled: false,
+        geosite_data_source: 'inline',
+        geosite_update_interval: 86400,
     },
     encryption: {
         processing: true,

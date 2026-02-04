@@ -43,10 +43,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "bootstraps": {
@@ -89,10 +86,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "blocking_mode_good": {
@@ -136,10 +130,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "blocking_mode_bad": {
@@ -183,10 +174,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "ratelimit": {
@@ -230,10 +218,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "ratelimit_subnet_len": {
@@ -279,10 +264,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "ratelimit_whitelist_not_ip": {
@@ -329,10 +311,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "edns_cs_enabled": {
@@ -376,20 +355,14 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "edns_cs_use_custom": {
     "req": {
       "edns_cs_enabled": true,
       "edns_cs_use_custom": true,
-      "edns_cs_custom_ip": "1.2.3.4",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": "1.2.3.4"
     },
     "want": {
       "upstream_dns": [
@@ -428,10 +401,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": true,
-      "edns_cs_custom_ip": "1.2.3.4",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": "1.2.3.4"
     }
   },
   "edns_cs_use_custom_bad_ip": {
@@ -477,10 +447,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "dnssec_enabled": {
@@ -524,10 +491,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "cache_size": {
@@ -571,10 +535,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "cache_enabled": {
@@ -619,10 +580,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "upstream_mode_parallel": {
@@ -666,10 +624,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "upstream_mode_fastest_addr": {
@@ -713,10 +668,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "upstream_dns_bad": {
@@ -762,10 +714,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "bootstraps_bad": {
@@ -811,10 +760,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "cache_bad_ttl": {
@@ -859,10 +805,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "upstream_mode_bad": {
@@ -906,10 +849,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "local_ptr_upstreams_good": {
@@ -957,10 +897,7 @@
         "123.123.123.123"
       ],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "local_ptr_upstreams_bad": {
@@ -1007,10 +944,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "local_ptr_upstreams_null": {
@@ -1054,10 +988,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "fallbacks": {
@@ -1105,10 +1036,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "blocked_response_ttl": {
@@ -1152,10 +1080,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "multiple_domain_specific_upstreams": {
@@ -1202,10 +1127,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   },
   "upstream_timeout": {
@@ -1249,10 +1171,7 @@
       "use_private_ptr_resolvers": false,
       "local_ptr_upstreams": [],
       "edns_cs_use_custom": false,
-      "edns_cs_custom_ip": "",
-      "geosite_enabled": false,
-      "geosite_data_source": "",
-      "geosite_update_interval": 0
+      "edns_cs_custom_ip": ""
     }
   }
 }

@@ -72,6 +72,18 @@ func newUpstreamConfigValidator(
 		privateUpstreamResults:  map[string]*upstreamResult{},
 	}
 
+	// Extract geosite upstreams before filtering them out, so we can test them.
+	generalGeositeUpstreams := extractGeositeUpstreams(general)
+	fallbackGeositeUpstreams := extractGeositeUpstreams(fallback)
+	privateGeositeUpstreams := extractGeositeUpstreams(private)
+
+	// Filter out geosite rules from the main lists, as they are not standard
+	// upstream configurations and cannot be parsed by proxy.ParseUpstreamsConfig.
+	general = filterGeositeRulesFromList(general)
+	fallback = filterGeositeRulesFromList(fallback)
+	private = filterGeositeRulesFromList(private)
+
+	// Parse standard upstream configurations.
 	conf, err := proxy.ParseUpstreamsConfig(general, opts)
 	cv.generalParseResults = collectErrResults(ctx, opts.Logger, general, err)
 	insertConfResults(conf, cv.generalUpstreamResults)
@@ -84,7 +96,35 @@ func newUpstreamConfigValidator(
 	cv.privateParseResults = collectErrResults(ctx, opts.Logger, private, err)
 	insertConfResults(conf, cv.privateUpstreamResults)
 
+	// Parse and add geosite upstreams for testing.
+	conf, err = proxy.ParseUpstreamsConfig(generalGeositeUpstreams, opts)
+	cv.generalParseResults = append(cv.generalParseResults, collectErrResults(ctx, opts.Logger, generalGeositeUpstreams, err)...)
+	insertConfResults(conf, cv.generalUpstreamResults)
+
+	conf, err = proxy.ParseUpstreamsConfig(fallbackGeositeUpstreams, opts)
+	cv.fallbackParseResults = append(cv.fallbackParseResults, collectErrResults(ctx, opts.Logger, fallbackGeositeUpstreams, err)...)
+	insertConfResults(conf, cv.fallbackUpstreamResults)
+
+	conf, err = proxy.ParseUpstreamsConfig(privateGeositeUpstreams, opts)
+	cv.privateParseResults = append(cv.privateParseResults, collectErrResults(ctx, opts.Logger, privateGeositeUpstreams, err)...)
+	insertConfResults(conf, cv.privateUpstreamResults)
+
 	return cv
+}
+
+// extractGeositeUpstreams extracts upstream server addresses from geosite rules.
+// For example, from "[geosite:cn]114.114.114.114 223.5.5.5" it extracts
+// ["114.114.114.114", "223.5.5.5"].
+func extractGeositeUpstreams(lines []string) (upstreams []string) {
+	for _, line := range lines {
+		_, ups, ok := parseGeositeRule(line)
+		if !ok {
+			continue
+		}
+		upstreams = append(upstreams, ups...)
+	}
+
+	return upstreams
 }
 
 // collectErrResults parses err and returns parsing results containing the

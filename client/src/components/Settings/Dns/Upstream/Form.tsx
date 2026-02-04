@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
@@ -12,12 +12,14 @@ import { getTextareaCommentsHighlight, syncScroll } from '../../../../helpers/hi
 import { RootState } from '../../../../initialState';
 import '../../../ui/texareaCommentsHighlight.css';
 import Examples from './Examples';
+import GeositeTest from './GeositeTest';
 import { Checkbox } from '../../../ui/Controls/Checkbox';
 import { Textarea } from '../../../ui/Controls/Textarea';
 import { Radio } from '../../../ui/Controls/Radio';
 import { Input } from '../../../ui/Controls/Input';
 import { validateRequiredValue } from '../../../../helpers/validators';
 import { toNumber } from '../../../../helpers/form';
+import apiClient from '../../../../api/Api';
 
 const UPSTREAM_DNS_NAME = 'upstream_dns';
 
@@ -30,6 +32,9 @@ type FormData = {
     use_private_ptr_resolvers: boolean;
     resolve_clients: boolean;
     upstream_timeout: number;
+    geosite_enabled: boolean;
+    geosite_data_source: string;
+    geosite_update_interval: number;
 };
 
 type FormProps = {
@@ -60,6 +65,9 @@ const Form = ({ initialValues, onSubmit }: FormProps) => {
     const dispatch = useDispatch();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+    const [geositeStatus, setGeositeStatus] = useState<any>(null);
+    const [updatingGeosite, setUpdatingGeosite] = useState(false);
+
     const {
         control,
         handleSubmit,
@@ -76,14 +84,45 @@ const Form = ({ initialValues, onSubmit }: FormProps) => {
             use_private_ptr_resolvers: initialValues?.use_private_ptr_resolvers || false,
             resolve_clients: initialValues?.resolve_clients || false,
             upstream_timeout: initialValues?.upstream_timeout || 0,
+            geosite_enabled: initialValues?.geosite_enabled || false,
+            geosite_data_source: initialValues?.geosite_data_source || 'inline',
+            geosite_update_interval: initialValues?.geosite_update_interval || 86400,
         },
     });
 
     const upstream_dns = watch('upstream_dns');
+    const geosite_enabled = watch('geosite_enabled');
     const processingTestUpstream = useSelector((state: RootState) => state.settings.processingTestUpstream);
     const processingSetConfig = useSelector((state: RootState) => state.dnsConfig.processingSetConfig);
     const defaultLocalPtrUpstreams = useSelector((state: RootState) => state.dnsConfig.default_local_ptr_upstreams);
     const upstream_dns_file = useSelector((state: RootState) => state.dnsConfig.upstream_dns_file);
+
+    useEffect(() => {
+        if (geosite_enabled) {
+            loadGeositeStatus();
+        }
+    }, [geosite_enabled]);
+
+    const loadGeositeStatus = async () => {
+        try {
+            const response = await apiClient.getGeositeStatus();
+            setGeositeStatus(response);
+        } catch (error) {
+            console.error('Failed to load geosite status:', error);
+        }
+    };
+
+    const handleGeositeUpdate = async () => {
+        setUpdatingGeosite(true);
+        try {
+            await apiClient.updateGeosite();
+            await loadGeositeStatus();
+        } catch (error) {
+            console.error('Failed to update geosite:', error);
+        } finally {
+            setUpdatingGeosite(false);
+        }
+    };
 
     const handleUpstreamTest = () => {
         const formValues = {
@@ -326,6 +365,116 @@ const Form = ({ initialValues, onSubmit }: FormProps) => {
                         />
                     </div>
                 </div>
+
+                <div className="col-12">
+                    <hr />
+                </div>
+
+                <div className="col-12 mb-4">
+                    <Controller
+                        name="geosite_enabled"
+                        control={control}
+                        render={({ field }) => (
+                            <Checkbox
+                                {...field}
+                                data-testid="geosite_enabled"
+                                title={t('geosite_enable')}
+                                subtitle={t('geosite_enable_desc')}
+                                disabled={processingSetConfig}
+                            />
+                        )}
+                    />
+                </div>
+
+                {watch('geosite_enabled') && (
+                    <>
+                        <div className="col-12">
+                            <label className="form__label form__label--with-desc" htmlFor="geosite_data_source">
+                                {t('geosite_data_source')}
+                            </label>
+
+                            <div className="form__desc form__desc--top">{t('geosite_data_source_desc')}</div>
+
+                            <Controller
+                                name="geosite_data_source"
+                                control={control}
+                                render={({ field }) => (
+                                    <Input
+                                        {...field}
+                                        id="geosite_data_source"
+                                        data-testid="geosite_data_source"
+                                        placeholder={t('geosite_data_source_placeholder')}
+                                        disabled={processingSetConfig}
+                                    />
+                                )}
+                            />
+                        </div>
+
+                        <div className="col-12 col-md-7 mt-4">
+                            <div className="form__group">
+                                <label htmlFor="geosite_update_interval" className="form__label form__label--with-desc">
+                                    {t('geosite_update_interval')}
+                                </label>
+
+                                <div className="form__desc form__desc--top">{t('geosite_update_interval_desc')}</div>
+
+                                <Controller
+                                    name="geosite_update_interval"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <Input
+                                            {...field}
+                                            type="number"
+                                            id="geosite_update_interval"
+                                            data-testid="geosite_update_interval"
+                                            placeholder={t('geosite_update_interval_placeholder')}
+                                            disabled={processingSetConfig}
+                                            min={0}
+                                            max={UINT32_RANGE.MAX}
+                                            onChange={(e) => {
+                                                const { value } = e.target;
+                                                field.onChange(toNumber(value));
+                                            }}
+                                        />
+                                    )}
+                                />
+                            </div>
+                        </div>
+
+                        {geositeStatus && geositeStatus.enabled && (
+                            <div className="col-12 mt-4">
+                                <div className="form__group">
+                                    <label className="form__label">{t('geosite_status')}</label>
+                                    {geositeStatus.last_update && (
+                                        <div className="form__desc">
+                                            {t('geosite_last_update')}: {new Date(geositeStatus.last_update).toLocaleString()}
+                                        </div>
+                                    )}
+                                    {geositeStatus.code_count > 0 && (
+                                        <div className="form__desc">
+                                            {t('geosite_code_count')}: {geositeStatus.code_count}
+                                        </div>
+                                    )}
+                                    <button
+                                        type="button"
+                                        className={clsx('btn btn-primary btn-standard mt-2', {
+                                            'btn-loading': updatingGeosite,
+                                        })}
+                                        onClick={handleGeositeUpdate}
+                                        disabled={updatingGeosite || processingSetConfig}>
+                                        {t('geosite_update_btn')}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {watch('geosite_enabled') && (
+                            <div className="col-12 mt-4">
+                                <GeositeTest />
+                            </div>
+                        )}
+                    </>
+                )}
             </div>
 
             <div className="card-actions">

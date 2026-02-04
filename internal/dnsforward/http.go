@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/netip"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/AdguardTeam/AdGuardHome/internal/aghhttp"
@@ -22,6 +23,7 @@ import (
 	"github.com/AdguardTeam/golibs/logutil/slogutil"
 	"github.com/AdguardTeam/golibs/netutil"
 	"github.com/AdguardTeam/golibs/stringutil"
+	"github.com/AdguardTeam/golibs/timeutil"
 	"github.com/AdguardTeam/golibs/validate"
 )
 
@@ -125,6 +127,15 @@ type jsonDNSConfig struct {
 	// systemResolvers to the front-end.  It's not a pointer to the slice since
 	// there is no need to omit it while decoding from JSON.
 	DefaultLocalPTRUpstreams []string `json:"default_local_ptr_upstreams,omitempty"`
+
+	// GeositeEnabled defines if geosite-based upstream routing is enabled.
+	GeositeEnabled *bool `json:"geosite_enabled"`
+
+	// GeositeDataSource is the source for geosite data (inline, URL, or file path).
+	GeositeDataSource *string `json:"geosite_data_source"`
+
+	// GeositeUpdateInterval is the interval for automatic geosite data updates in seconds.
+	GeositeUpdateInterval *int `json:"geosite_update_interval"`
 }
 
 // jsonUpstreamMode is a enumeration of upstream modes.
@@ -174,6 +185,9 @@ func (s *Server) getDNSConfig(ctx context.Context) (c *jsonDNSConfig) {
 	resolveClients := s.conf.AddrProcConf.UseRDNS
 	usePrivateRDNS := s.conf.UsePrivateRDNS
 	localPTRUpstreams := stringutil.CloneSliceOrEmpty(s.conf.LocalPTRResolvers)
+	geositeEnabled := s.conf.GeositeEnabled
+	geositeDataSource := s.conf.GeositeDataSource
+	geositeUpdateInterval := int(time.Duration(s.conf.GeositeUpdateInterval).Seconds())
 
 	var upstreamMode jsonUpstreamMode
 	switch s.conf.UpstreamMode {
@@ -223,6 +237,9 @@ func (s *Server) getDNSConfig(ctx context.Context) (c *jsonDNSConfig) {
 		LocalPTRUpstreams:        &localPTRUpstreams,
 		DefaultLocalPTRUpstreams: defPTRUps,
 		DisabledUntil:            protectionDisabledUntil,
+		GeositeEnabled:           &geositeEnabled,
+		GeositeDataSource:        &geositeDataSource,
+		GeositeUpdateInterval:    &geositeUpdateInterval,
 	}
 }
 
@@ -400,6 +417,24 @@ func (req *jsonDNSConfig) checkPrivateRDNS(
 	return nil
 }
 
+// filterGeositeRulesFromList filters out geosite rules from the upstream list.
+// Geosite rules are in the format [geosite:category]upstream and should not be
+// validated as regular upstream configurations.
+func filterGeositeRulesFromList(upstreams []string) (filtered []string) {
+	filtered = make([]string, 0, len(upstreams))
+
+	for _, line := range upstreams {
+		line = strings.TrimSpace(line)
+		// Skip geosite rules (lines starting with "[geosite:")
+		if strings.HasPrefix(line, "[geosite:") {
+			continue
+		}
+		filtered = append(filtered, line)
+	}
+
+	return filtered
+}
+
 // validateUpstreamDNSServers returns an error if any field of req is invalid.
 // l, ownAddrs, sysResolvers and privateNets must not be nil.
 func (req *jsonDNSConfig) validateUpstreamDNSServers(
@@ -415,7 +450,12 @@ func (req *jsonDNSConfig) validateUpstreamDNSServers(
 	}
 
 	if req.Upstreams != nil {
-		uc, err = proxy.ParseUpstreamsConfig(*req.Upstreams, opts)
+		// Filter out geosite rules before validation, as they are not standard
+		// upstream configurations and will be handled separately by the geosite
+		// manager.
+		upstreams := filterGeositeRulesFromList(*req.Upstreams)
+
+		uc, err = proxy.ParseUpstreamsConfig(upstreams, opts)
 		err = errors.WithDeferred(err, uc.Close())
 		if err != nil {
 			return fmt.Errorf("upstream servers: %w", err)
@@ -668,6 +708,8 @@ func (s *Server) setConfigRestartable(dc *jsonDNSConfig) (shouldRestart bool) {
 		setIfNotNil(&s.conf.RatelimitSubnetLenIPv4, dc.RatelimitSubnetLenIPv4),
 		setIfNotNil(&s.conf.RatelimitSubnetLenIPv6, dc.RatelimitSubnetLenIPv6),
 		setIfNotNil(&s.conf.RatelimitWhitelist, dc.RatelimitWhitelist),
+		setIfNotNil(&s.conf.GeositeEnabled, dc.GeositeEnabled),
+		setIfNotNil(&s.conf.GeositeDataSource, dc.GeositeDataSource),
 	} {
 		shouldRestart = shouldRestart || hasSet
 		if shouldRestart {
@@ -684,6 +726,14 @@ func (s *Server) setConfigRestartable(dc *jsonDNSConfig) (shouldRestart bool) {
 		ut := time.Duration(*dc.UpstreamTimeout) * time.Second
 		if s.conf.UpstreamTimeout != ut {
 			s.conf.UpstreamTimeout = ut
+			shouldRestart = true
+		}
+	}
+
+	if dc.GeositeUpdateInterval != nil {
+		interval := timeutil.Duration(time.Duration(*dc.GeositeUpdateInterval) * time.Second)
+		if s.conf.GeositeUpdateInterval != interval {
+			s.conf.GeositeUpdateInterval = interval
 			shouldRestart = true
 		}
 	}
@@ -767,6 +817,266 @@ func (s *Server) handleCacheClear(w http.ResponseWriter, _ *http.Request) {
 	s.conf.ClientsContainer.ClearUpstreamCache()
 
 	_, _ = io.WriteString(w, "OK")
+}
+
+// geositeUpdateResponse is the response for geosite update endpoint.
+type geositeUpdateResponse struct {
+	Success    bool      `json:"success"`
+	Message    string    `json:"message,omitempty"`
+	LastUpdate time.Time `json:"last_update,omitempty"`
+}
+
+// handleGeositeUpdate handles requests to the POST /control/geosite/update endpoint.
+func (s *Server) handleGeositeUpdate(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	l := s.logger
+
+	s.serverLock.RLock()
+	gm := s.geosite
+	s.serverLock.RUnlock()
+
+	if gm == nil {
+		aghhttp.ErrorAndLog(ctx, l, r, w, http.StatusBadRequest, "geosite is not enabled")
+		return
+	}
+
+	err := gm.update(ctx)
+	if err != nil {
+		resp := geositeUpdateResponse{
+			Success: false,
+			Message: fmt.Sprintf("failed to update geosite: %v", err),
+		}
+		aghhttp.WriteJSONResponse(ctx, l, w, r, http.StatusOK, resp)
+		return
+	}
+
+	gm.mu.RLock()
+	lastUpdate := gm.lastUpdate
+	gm.mu.RUnlock()
+
+	resp := geositeUpdateResponse{
+		Success:    true,
+		Message:    "geosite data updated successfully",
+		LastUpdate: lastUpdate,
+	}
+	aghhttp.WriteJSONResponse(ctx, l, w, r, http.StatusOK, resp)
+}
+
+// geositeStatusResponse is the response for geosite status endpoint.
+type geositeStatusResponse struct {
+	Enabled    bool      `json:"enabled"`
+	LastUpdate time.Time `json:"last_update,omitempty"`
+	CodeCount  int       `json:"code_count,omitempty"`
+	SourceType string    `json:"source_type,omitempty"`
+}
+
+// handleGeositeStatus handles requests to the GET /control/geosite/status endpoint.
+func (s *Server) handleGeositeStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	l := s.logger
+
+	s.serverLock.RLock()
+	gm := s.geosite
+	s.serverLock.RUnlock()
+
+	resp := geositeStatusResponse{
+		Enabled: gm != nil,
+	}
+
+	if gm != nil {
+		gm.mu.RLock()
+		resp.LastUpdate = gm.lastUpdate
+		if gm.db != nil {
+			resp.CodeCount = gm.db.CodeCount
+			resp.SourceType = string(gm.db.SourceType)
+		}
+		gm.mu.RUnlock()
+	}
+
+	aghhttp.WriteJSONResponse(ctx, l, w, r, http.StatusOK, resp)
+}
+
+// testDNSRequest is the request for testing DNS upstream for a domain.
+type testDNSRequest struct {
+	Domain string `json:"domain"`
+}
+
+// testDNSResponse is the response for testing DNS upstream for a domain.
+type testDNSResponse struct {
+	Domain    string   `json:"domain"`
+	Upstreams []string `json:"upstreams,omitempty"`
+	Tags      string   `json:"tags,omitempty"`
+	Message   string   `json:"message,omitempty"`
+}
+
+// handleTestDNS handles requests to the POST /control/test_dns endpoint.
+// It returns which upstream DNS servers would be used for a given domain.
+func (s *Server) handleTestDNS(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	l := s.logger
+
+	req := &testDNSRequest{}
+	err := json.NewDecoder(r.Body).Decode(req)
+	if err != nil {
+		aghhttp.ErrorAndLog(ctx, l, r, w, http.StatusBadRequest, "decoding request: %s", err)
+		return
+	}
+
+	if req.Domain == "" {
+		aghhttp.ErrorAndLog(ctx, l, r, w, http.StatusBadRequest, "domain is required")
+		return
+	}
+
+	// Remove trailing dot if present
+	domain := req.Domain
+	if len(domain) > 0 && domain[len(domain)-1] == '.' {
+		domain = domain[:len(domain)-1]
+	}
+
+	resp := &testDNSResponse{
+		Domain: req.Domain,
+	}
+
+	s.serverLock.RLock()
+	gm := s.geosite
+	s.serverLock.RUnlock()
+
+	// Check geosite-based routing first if enabled
+	if gm != nil {
+		tags, upstreams := gm.getUpstreamsForDomain(domain)
+		if len(upstreams) > 0 {
+			resp.Upstreams = upstreams
+			resp.Tags = tags
+			resp.Message = "Using geosite-based upstream"
+			aghhttp.WriteJSONResponse(ctx, l, w, r, http.StatusOK, resp)
+			return
+		}
+	}
+
+	// Check domain-specific upstreams
+	s.serverLock.RLock()
+	uc := s.conf.UpstreamConfig
+	if uc != nil {
+		// Look up domain-specific upstreams using the same logic as dnsproxy
+		fqdn := strings.ToLower(domain)
+		var domainUpstreams []upstream.Upstream
+
+		// Check if domain has subdomain exclusion
+		if uc.SubdomainExclusions != nil && uc.SubdomainExclusions.Has(fqdn) {
+			// For subdomain exclusions, use default upstreams
+			domainUpstreams = uc.Upstreams
+		} else {
+			// Try to find domain-specific upstreams
+			// First check exact match in SpecifiedDomainUpstreams
+			if ups, ok := uc.SpecifiedDomainUpstreams[fqdn]; ok {
+				domainUpstreams = ups
+			} else if ups, ok := uc.DomainReservedUpstreams[fqdn]; ok {
+				// Then check DomainReservedUpstreams (includes subdomains)
+				domainUpstreams = ups
+			} else {
+				// Try parent domains
+				_, parentDomain, found := strings.Cut(fqdn, ".")
+				for found && parentDomain != "" {
+					if ups, ok := uc.DomainReservedUpstreams[parentDomain]; ok {
+						domainUpstreams = ups
+						break
+					}
+					_, parentDomain, found = strings.Cut(parentDomain, ".")
+				}
+			}
+		}
+
+		// If domain-specific upstreams found, return them
+		if len(domainUpstreams) > 0 {
+			upstreams := make([]string, 0, len(domainUpstreams))
+			for _, u := range domainUpstreams {
+				upstreams = append(upstreams, u.Address())
+			}
+			resp.Upstreams = upstreams
+			resp.Message = "Using domain-specific upstream"
+			s.serverLock.RUnlock()
+			aghhttp.WriteJSONResponse(ctx, l, w, r, http.StatusOK, resp)
+			return
+		}
+
+		// Fall back to default upstreams
+		if len(uc.Upstreams) > 0 {
+			upstreams := make([]string, 0, len(uc.Upstreams))
+			for _, u := range uc.Upstreams {
+				upstreams = append(upstreams, u.Address())
+			}
+			resp.Upstreams = upstreams
+			resp.Message = "Using default upstream"
+		}
+	}
+	s.serverLock.RUnlock()
+
+	if len(resp.Upstreams) == 0 {
+		resp.Message = "No upstream configured"
+	}
+
+	aghhttp.WriteJSONResponse(ctx, l, w, r, http.StatusOK, resp)
+}
+
+// testGeositeRequest is the request for testing geosite matching for a domain.
+type testGeositeRequest struct {
+	Domain string `json:"domain"`
+}
+
+// testGeositeResponse is the response for testing geosite matching for a domain.
+type testGeositeResponse struct {
+	Domain     string   `json:"domain"`
+	Categories []string `json:"categories,omitempty"`
+	Message    string   `json:"message,omitempty"`
+}
+
+// handleTestGeosite handles requests to the POST /control/test_geosite endpoint.
+// It returns which geosite categories a domain matches.
+func (s *Server) handleTestGeosite(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	l := s.logger
+
+	req := &testGeositeRequest{}
+	err := json.NewDecoder(r.Body).Decode(req)
+	if err != nil {
+		aghhttp.ErrorAndLog(ctx, l, r, w, http.StatusBadRequest, "decoding request: %s", err)
+		return
+	}
+
+	if req.Domain == "" {
+		aghhttp.ErrorAndLog(ctx, l, r, w, http.StatusBadRequest, "domain is required")
+		return
+	}
+
+	// Remove trailing dot if present
+	domain := req.Domain
+	if len(domain) > 0 && domain[len(domain)-1] == '.' {
+		domain = domain[:len(domain)-1]
+	}
+
+	resp := &testGeositeResponse{
+		Domain: req.Domain,
+	}
+
+	s.serverLock.RLock()
+	gm := s.geosite
+	s.serverLock.RUnlock()
+
+	if gm == nil {
+		resp.Message = "Geosite is not enabled"
+		aghhttp.WriteJSONResponse(ctx, l, w, r, http.StatusOK, resp)
+		return
+	}
+
+	categories := gm.getSites(domain)
+	if len(categories) == 0 {
+		resp.Message = "No geosite categories matched"
+	} else {
+		resp.Categories = categories
+		resp.Message = fmt.Sprintf("Matched %d categories", len(categories))
+	}
+
+	aghhttp.WriteJSONResponse(ctx, l, w, r, http.StatusOK, resp)
 }
 
 // protectionJSON is an object for /control/protection endpoint.
@@ -869,6 +1179,11 @@ func (s *Server) registerHandlers() {
 	s.conf.HTTPReg.Register(http.MethodPost, "/control/access/set", s.handleAccessSet)
 
 	s.conf.HTTPReg.Register(http.MethodPost, "/control/cache_clear", s.handleCacheClear)
+
+	s.conf.HTTPReg.Register(http.MethodPost, "/control/geosite/update", s.handleGeositeUpdate)
+	s.conf.HTTPReg.Register(http.MethodGet, "/control/geosite/status", s.handleGeositeStatus)
+	s.conf.HTTPReg.Register(http.MethodPost, "/control/test_dns", s.handleTestDNS)
+	s.conf.HTTPReg.Register(http.MethodPost, "/control/test_geosite", s.handleTestGeosite)
 
 	// Register both versions, with and without the trailing slash, to
 	// prevent a 301 Moved Permanently redirect when clients request the

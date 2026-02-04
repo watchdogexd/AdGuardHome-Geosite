@@ -613,12 +613,11 @@ func startMods(
 	httpReg aghhttp.Registrar,
 	workDir string,
 ) (err error) {
-	statsDir, querylogDir, err := checkStatsAndQuerylogDirs(config, workDir)
+	statsDir, querylogDir, dataDir, err := checkStatsAndQuerylogDirs(config, workDir)
 	if err != nil {
 		return err
 	}
-
-	err = initDNS(ctx, baseLogger, tlsMgr, confModifier, httpReg, statsDir, querylogDir)
+	err = initDNS(ctx, baseLogger, tlsMgr, confModifier, httpReg, statsDir, querylogDir, dataDir)
 	if err != nil {
 		return err
 	}

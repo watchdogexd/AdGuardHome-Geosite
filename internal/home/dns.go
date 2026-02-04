@@ -51,6 +51,7 @@ func initDNS(
 	httpReg aghhttp.Registrar,
 	statsDir string,
 	querylogDir string,
+	dataDir string,
 ) (err error) {
 	anonymizer := config.anonymizer()
 
@@ -117,6 +118,7 @@ func initDNS(
 		tlsMgr,
 		baseLogger,
 		confModifier,
+		dataDir,
 	)
 }
 
@@ -137,6 +139,7 @@ func initDNSServer(
 	tlsMgr *tlsManager,
 	l *slog.Logger,
 	confModifier agh.ConfigModifier,
+	dataDir string,
 ) (err error) {
 	globalContext.dnsServer, err = dnsforward.NewServer(dnsforward.DNSCreateParams{
 		Logger:      l,
@@ -168,6 +171,7 @@ func initDNSServer(
 		httpReg,
 		globalContext.clients.storage,
 		confModifier,
+		dataDir,
 	)
 	if err != nil {
 		return fmt.Errorf("newServerConfig: %w", err)
@@ -245,6 +249,7 @@ func newServerConfig(
 	httpReg aghhttp.Registrar,
 	clientsContainer dnsforward.ClientsContainer,
 	confModifier agh.ConfigModifier,
+	workDir string,
 ) (newConf *dnsforward.ServerConfig, err error) {
 	hosts := aghalg.CoalesceSlice(dnsConf.BindHosts, []netip.Addr{netutil.IPv4Localhost()})
 
@@ -262,6 +267,7 @@ func newServerConfig(
 		Config:                 fwdConf,
 		TLSConf:                intTLSConf,
 		TLSAllowUnencryptedDoH: tlsConf.AllowUnencryptedDoH,
+		DataDir:                workDir,
 		UpstreamTimeout:        time.Duration(dnsConf.UpstreamTimeout),
 		TLSv12Roots:            tlsMgr.rootCerts,
 		ConfModifier:           confModifier,
@@ -519,11 +525,11 @@ func closeDNSServer(ctx context.Context) {
 }
 
 // checkStatsAndQuerylogDirs checks and returns directory paths to store
-// statistics and query log.
+// statistics, query log, and other data files.
 func checkStatsAndQuerylogDirs(
 	conf *configuration,
 	workDir string,
-) (statsDir, querylogDir string, err error) {
+) (statsDir, querylogDir, dataDir string, err error) {
 	baseDir := filepath.Join(workDir, dataDir)
 
 	statsDir = conf.Stats.DirPath
@@ -532,7 +538,7 @@ func checkStatsAndQuerylogDirs(
 	} else {
 		err = checkDir(statsDir)
 		if err != nil {
-			return "", "", fmt.Errorf("statistics: custom directory: %w", err)
+			return "", "", "", fmt.Errorf("statistics: custom directory: %w", err)
 		}
 	}
 
@@ -542,11 +548,11 @@ func checkStatsAndQuerylogDirs(
 	} else {
 		err = checkDir(querylogDir)
 		if err != nil {
-			return "", "", fmt.Errorf("querylog: custom directory: %w", err)
+			return "", "", "", fmt.Errorf("querylog: custom directory: %w", err)
 		}
 	}
 
-	return statsDir, querylogDir, nil
+	return statsDir, querylogDir, baseDir, nil
 }
 
 // checkDir checks if the path is a directory.  It's used to check for

@@ -20,6 +20,9 @@ const Upstream = () => {
         local_ptr_upstreams,
         use_private_ptr_resolvers,
         upstream_timeout,
+        geosite_enabled,
+        geosite_data_source,
+        geosite_update_interval,
     } = useSelector((state: RootState) => state.dnsConfig, shallowEqual);
 
     const upstream_dns_file = useSelector((state: RootState) => state.dnsConfig.upstream_dns_file);
@@ -34,6 +37,9 @@ const Upstream = () => {
             local_ptr_upstreams,
             use_private_ptr_resolvers,
             upstream_timeout,
+            geosite_enabled,
+            geosite_data_source,
+            geosite_update_interval,
         } = values;
 
         const dnsConfig = {
@@ -44,6 +50,9 @@ const Upstream = () => {
             local_ptr_upstreams,
             use_private_ptr_resolvers,
             upstream_timeout,
+            geosite_enabled,
+            geosite_data_source,
+            geosite_update_interval,
             ...(upstream_dns_file ? null : { upstream_dns }),
         };
 
@@ -68,6 +77,9 @@ const Upstream = () => {
                             local_ptr_upstreams,
                             use_private_ptr_resolvers,
                             upstream_timeout,
+                            geosite_enabled,
+                            geosite_data_source,
+                            geosite_update_interval,
                         }}
                         onSubmit={handleSubmit}
                     />
