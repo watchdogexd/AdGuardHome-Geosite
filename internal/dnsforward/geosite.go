@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -124,9 +125,6 @@ func (gm *geositeManager) loadFromLocalOrRemote(ctx context.Context) (err error)
 
 // loadFromFile loads geosite data from a local file.
 func (gm *geositeManager) loadFromFile(ctx context.Context, filePath string) (err error) {
-	gm.mu.Lock()
-	defer gm.mu.Unlock()
-
 	gm.logger.DebugContext(ctx, "loading geosite data from file", "path", filePath)
 
 	db, err := geosite.FromFile(filePath)
@@ -134,12 +132,22 @@ func (gm *geositeManager) loadFromFile(ctx context.Context, filePath string) (er
 		return fmt.Errorf("loading from file: %w", err)
 	}
 
+	gm.mu.Lock()
+	// Replace the old database - the previous one is now unreferenced
+	// and will be garbage collected.
+	oldDB := gm.db
 	gm.db = db
-
-	// Get file modification time as last update time
-	fileInfo, err := os.Stat(filePath)
-	if err == nil {
+	fileInfo, _ := os.Stat(filePath)
+	if fileInfo != nil {
 		gm.lastUpdate = fileInfo.ModTime()
+	}
+	gm.mu.Unlock()
+
+	// Help reclaim old database memory after releasing lock.
+	// This is especially important for memory-mapped databases
+	// which aren't released until GC runs.
+	if oldDB != nil {
+		runtime.GC()
 	}
 
 	gm.logger.InfoContext(ctx, "geosite data loaded successfully from file",
